@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prismaService from '../services/prisma.service';
 
 // Update student status - can only be changed once
-export const updateStudentStatus = async (req: Request, res: Response): Promise<Response | void> => {
+export const updateStudentStatus = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -40,7 +40,7 @@ export const updateStudentStatus = async (req: Request, res: Response): Promise<
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: `Student status updated to ${status}`,
       data: updatedStudent
@@ -48,7 +48,7 @@ export const updateStudentStatus = async (req: Request, res: Response): Promise<
 
   } catch (error) {
     console.error('Error updating student status:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Error updating student status',
       error: error instanceof Error ? error.message : 'Unknown error'

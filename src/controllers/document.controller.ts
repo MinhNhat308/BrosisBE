@@ -295,7 +295,7 @@ export const getStudentDocuments = async (req: Request, res: Response) => {
 };
 
 // Update document submission status
-export const updateDocumentStatus = async (req: Request, res: Response): Promise<Response | void> => {
+export const updateDocumentStatus = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { documentId } = req.params;
     const { submission_status, notes } = req.body;
@@ -346,7 +346,7 @@ export const updateDocumentStatus = async (req: Request, res: Response): Promise
       data: updateData
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: `Document status updated to ${submission_status}`,
       data: updatedDocument
@@ -354,7 +354,7 @@ export const updateDocumentStatus = async (req: Request, res: Response): Promise
 
   } catch (error) {
     console.error('Error updating document status:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Error updating document status',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -363,7 +363,7 @@ export const updateDocumentStatus = async (req: Request, res: Response): Promise
 };
 
 // Create default documents for a student
-export const createDefaultDocuments = async (req: Request, res: Response): Promise<Response | void> => {
+export const createDefaultDocuments = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { studentId } = req.params;
 
@@ -516,7 +516,7 @@ export const createDefaultDocuments = async (req: Request, res: Response): Promi
       )
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Default documents created successfully',
       data: createdDocuments
@@ -524,7 +524,7 @@ export const createDefaultDocuments = async (req: Request, res: Response): Promi
 
   } catch (error) {
     console.error('Error creating default documents:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Error creating default documents',
       error: error instanceof Error ? error.message : 'Unknown error'
