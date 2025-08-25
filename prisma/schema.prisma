@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model blogs {
+  id         Int       @id @default(autoincrement())
+  title      String    @db.VarChar(255)
+  content    String    @db.Text
+  author     String?   @db.VarChar(100)
+  image_url  String?   @db.VarChar(500)
+  views      Int       @default(0)
+  likes      Int       @default(0)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  blog_tags  blogs_tags[]
+}
+
+model tags {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(50)
+  blog_tags blogs_tags[]
+}
+
+model blogs_tags {
+  blog_id Int
+  tag_id  Int
+  blog    blogs @relation(fields: [blog_id], references: [id], onDelete: Cascade)
+  tag     tags  @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  @@id([blog_id, tag_id])
+}
+
+model events {
+  id                    Int                 @id @default(autoincrement())
+  title                 String              @db.VarChar(255)
+  description           String              @db.Text
+  full_description      String?             @db.Text
+  start_date            DateTime            @db.Date
+  end_date              DateTime?           @db.Date // For multi-day events
+  start_time            String?             @db.VarChar(10) // "14:00" - optional for all-day events
+  end_time              String?             @db.VarChar(10) // "17:00"
+  location              String              @db.VarChar(255)
+  target_audience       String              @db.VarChar(100) // "Tân sinh viên K21", "Tất cả sinh viên", "Năm cuối"
+  max_participants      Int?                // null for unlimited
+  current_participants  Int                 @default(0)
+  status                String              @default("upcoming") @db.VarChar(20) // upcoming, ongoing, completed, cancelled
+  event_type            String              @db.VarChar(50) // orientation, ceremony, academic, career, health, exam
+  priority              String              @default("normal") @db.VarChar(20) // high, normal, low
+  is_mandatory          Boolean             @default(false) // Bắt buộc tham gia hay không
+  is_online             Boolean             @default(false) // Trực tuyến hay offline
+  organizer             String              @db.VarChar(255) // "Trường Đại học FPT", "Phòng Đào tạo"
+  contact_info          String?             @db.VarChar(500) // Thông tin liên hệ
+  requirements          String?             @db.Text // Yêu cầu tham gia
+  what_to_bring         String?             @db.Text // Cần chuẩn bị gì
+  note                  String?             @db.Text // Ghi chú đặc biệt
+  image_url             String?             @db.VarChar(500)
+  registration_required Boolean             @default(false) // Có cần đăng ký không
+  registration_deadline DateTime?           @db.Timestamp(0) // Hạn đăng ký
+  created_at            DateTime            @default(now()) @db.Timestamp(0)
+  updated_at            DateTime            @updatedAt @db.Timestamp(0)
+  
+  // Relations
+  tags                  event_tags[]
+  registrations         event_registrations[]
+  likes                 event_likes[]
+  student_participations student_events[]
+  
+  @@map("events")
+}
+
+model event_tags {
+  id       Int    @id @default(autoincrement())
+  event_id Int
+  tag_name String @db.VarChar(50)
+  
+  // Relations
+  event    events @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  
+  @@map("event_tags")
+}
+
+model event_registrations {
+  id            Int      @id @default(autoincrement())
+  event_id      Int
+  student_id    String?  @db.VarChar(20) // MSSV
+  student_name  String   @db.VarChar(100)
+  student_email String   @db.VarChar(255)
+  student_phone String?  @db.VarChar(20)
+  major         String?  @db.VarChar(100) // Ngành học
+  semester      String?  @db.VarChar(20) // "K21", "K20"
+  class_code    String?  @db.VarChar(20) // Mã lớp
+  registered_at DateTime @default(now()) @db.Timestamp(0)
+  status        String   @default("registered") @db.VarChar(20) // registered, attended, absent, cancelled
+  notes         String?  @db.Text // Ghi chú của sinh viên
+  
+  // Relations
+  event         events   @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  
+  @@map("event_registrations")
+}
+
+model event_likes {
+  id       Int    @id @default(autoincrement())
+  event_id Int
+  user_ip  String @db.VarChar(45) // For tracking likes without user accounts
+  
+  // Relations
+  event    events @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  
+  @@unique([event_id, user_ip])
+  @@map("event_likes")
+}
+
+model event_categories {
+  id          Int    @id @default(autoincrement())
+  name        String @unique @db.VarChar(50)
+  description String @db.VarChar(255)
+  color       String @db.VarChar(20) // For UI styling
+  icon        String @db.VarChar(50) // Icon name for UI
+  
+  @@map("event_categories")
+}
+
+// Table to store academic schedule and important dates
+model academic_calendar {
+  id          Int      @id @default(autoincrement())
+  semester    String   @db.VarChar(20) // "2025-2026", "HK1-2025"
+  event_name  String   @db.VarChar(255)
+  start_date  DateTime @db.Date
+  end_date    DateTime? @db.Date
+  description String?  @db.Text
+  is_holiday  Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  
+  @@map("academic_calendar")
+}
+
+// Students management table (20 students only)
+model students {
+  id             Int       @id @default(autoincrement())
+  student_id     String    @unique @db.VarChar(20) // MSSV: SE170001, GD170002...
+  name           String    @db.VarChar(100)
+  email          String    @unique @db.VarChar(255)
+  phone          String?   @db.VarChar(20)
+  parent_name    String?   @db.VarChar(100)
+  parent_phone   String?   @db.VarChar(20)
+  department     String    @db.VarChar(100) // Tên khoa
+  contact_status String    @default("pending") @db.VarChar(20) // contacted, pending, no_response
+  insurance_status String  @default("pending") @db.VarChar(20) // active, expired, pending
+  address        String?   @db.Text
+  notes          String?   @db.Text
+  avatar_url     String?   @db.VarChar(500)
+  status         String    @default("active") @db.VarChar(20) // active, inactive, graduated
+  created_at     DateTime  @default(now()) @db.Timestamp(0)
+  updated_at     DateTime  @updatedAt @db.Timestamp(0)
+  
+  // Relations
+  event_participations student_events[]
+  document_submissions student_documents[]
+  
+  @@map("students")
+}
+
+// Student event participations
+model student_events {
+  id              Int       @id @default(autoincrement())
+  student_id      Int
+  event_id        Int
+  participation_status String @default("not_registered") @db.VarChar(20) // not_registered, registered, attended, absent, excuse
+  registered_at   DateTime? @db.Timestamp(0)
+  registration_note String? @db.Text
+  contact_info    String?   @db.VarChar(255)
+  created_at      DateTime  @default(now()) @db.Timestamp(0)
+  updated_at      DateTime  @updatedAt @db.Timestamp(0)
+  
+  // Relations
+  student         students  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  event           events    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  
+  @@unique([student_id, event_id])
+  @@map("student_events")
+}
+
+// Student document submissions
+model student_documents {
+  id            Int       @id @default(autoincrement())
+  student_id    Int
+  document_type String    @db.VarChar(100) // "Hồ sơ nhập học", "Đơn xin học bổng", "Giấy khám sức khỏe"...
+  document_name String    @db.VarChar(255)
+  description   String?   @db.Text
+  submission_status String @default("not_submitted") @db.VarChar(20) // submitted, not_submitted, pending_review, approved, rejected
+  submitted_at  DateTime? @db.Timestamp(0)
+  deadline      DateTime? @db.Date
+  is_required   Boolean   @default(false)
+  file_url      String?   @db.VarChar(500)
+  notes         String?   @db.Text
+  created_at    DateTime  @default(now()) @db.Timestamp(0)
+  updated_at    DateTime  @updatedAt @db.Timestamp(0)
+  
+  // Relations
+  student       students  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  
+  @@map("student_documents")
+}

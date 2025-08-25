@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Blog API Connection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .blog-item {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+        }
+        .blog-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .blog-meta {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .blog-content {
+            line-height: 1.6;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-style: italic;
+        }
+        .error {
+            color: #e74c3c;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #27ae60;
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .form-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔗 Test Kết Nối Blog API</h1>
+            <p>Frontend (Brosis) ↔️ Backend (BroSis2025)</p>
+        </div>
+
+        <!-- Test Connection -->
+        <div class="form-section">
+            <h3>🧪 Test Kết Nối</h3>
+            <button class="btn" onclick="testConnection()">Test API Connection</button>
+            <button class="btn" onclick="loadBlogs()">Load All Blogs</button>
+            <div id="connectionStatus"></div>
+        </div>
+
+        <!-- Create Blog Form -->
+        <div class="form-section">
+            <h3>✍️ Tạo Blog Mới</h3>
+            <form id="createBlogForm">
+                <div class="form-group">
+                    <label for="title">Tiêu đề:</label>
+                    <input type="text" id="title" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="author">Tác giả:</label>
+                    <input type="text" id="author" name="author" placeholder="Tùy chọn">
+                </div>
+                <div class="form-group">
+                    <label for="content">Nội dung:</label>
+                    <textarea id="content" name="content" rows="5" required></textarea>
+                </div>
+                <button type="submit" class="btn">Tạo Blog</button>
+            </form>
+            <div id="createStatus"></div>
+        </div>
+
+        <!-- Blogs List -->
+        <div>
+            <h3>📚 Danh Sách Blog</h3>
+            <div id="blogsList">
+                <div class="loading">Chưa load dữ liệu...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/blog';
+
+        // Test API Connection
+        async function testConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = '<div class="loading">Đang test kết nối...</div>';
+            
+            try {
+                const response = await fetch(API_BASE_URL);
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.innerHTML = '<div class="success">✅ Kết nối thành công! API hoạt động bình thường.</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ API trả về lỗi: ' + response.status + '</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Không thể kết nối tới API: ' + error.message + '</div>';
+            }
+        }
+
+        // Load all blogs
+        async function loadBlogs() {
+            const blogsList = document.getElementById('blogsList');
+            blogsList.innerHTML = '<div class="loading">Đang tải blogs...</div>';
+            
+            try {
+                const response = await fetch(API_BASE_URL);
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                
+                const blogs = await response.json();
+                
+                if (blogs.length === 0) {
+                    blogsList.innerHTML = '<div class="loading">Chưa có blog nào. Hãy tạo blog đầu tiên!</div>';
+                    return;
+                }
+                
+                let blogsHTML = '';
+                blogs.forEach(blog => {
+                    blogsHTML += `
+                        <div class="blog-item">
+                            <div class="blog-title">${blog.title}</div>
+                            <div class="blog-meta">
+                                👤 ${blog.author || 'Anonymous'} | 
+                                📅 ${new Date(blog.created_at).toLocaleDateString('vi-VN')} |
+                                🆔 ID: ${blog.id}
+                            </div>
+                            <div class="blog-content">${blog.content}</div>
+                            <button class="btn" onclick="deleteBlog(${blog.id})" style="background: #e74c3c; margin-top: 10px;">Xóa</button>
+                        </div>
+                    `;
+                });
+                
+                blogsList.innerHTML = blogsHTML;
+                
+            } catch (error) {
+                blogsList.innerHTML = '<div class="error">❌ Lỗi khi tải blogs: ' + error.message + '</div>';
+            }
+        }
+
+        // Create new blog
+        document.getElementById('createBlogForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const statusDiv = document.getElementById('createStatus');
+            statusDiv.innerHTML = '<div class="loading">Đang tạo blog...</div>';
+            
+            const formData = new FormData(e.target);
+            const blogData = {
+                title: formData.get('title'),
+                content: formData.get('content'),
+                author: formData.get('author') || undefined
+            };
+            
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(blogData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                
+                const newBlog = await response.json();
+                statusDiv.innerHTML = '<div class="success">✅ Blog đã được tạo thành công! ID: ' + newBlog.id + '</div>';
+                
+                // Reset form
+                e.target.reset();
+                
+                // Reload blogs
+                loadBlogs();
+                
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Lỗi khi tạo blog: ' + error.message + '</div>';
+            }
+        });
+
+        // Delete blog
+        async function deleteBlog(id) {
+            if (!confirm('Bạn có chắc muốn xóa blog này?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                
+                alert('✅ Blog đã được xóa thành công!');
+                loadBlogs();
+                
+            } catch (error) {
+                alert('❌ Lỗi khi xóa blog: ' + error.message);
+            }
+        }
+
+        // Auto load blogs when page loads
+        window.addEventListener('load', function() {
+            testConnection();
+            loadBlogs();
+        });
+    </script>
+</body>
+</html>
