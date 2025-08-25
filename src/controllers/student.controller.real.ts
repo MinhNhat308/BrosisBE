@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prismaService from '../services/prisma.service';
 
 // Update student status - can only be changed once
-export const updateStudentStatus = async (req: Request, res: Response) => {
+export const updateStudentStatus = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const { id } = req.params;
     const { status } = req.body;

@@ -295,7 +295,7 @@ export const getStudentDocuments = async (req: Request, res: Response) => {
 };
 
 // Update document submission status
-export const updateDocumentStatus = async (req: Request, res: Response) => {
+export const updateDocumentStatus = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const { documentId } = req.params;
     const { submission_status, notes } = req.body;
@@ -363,7 +363,7 @@ export const updateDocumentStatus = async (req: Request, res: Response) => {
 };
 
 // Create default documents for a student
-export const createDefaultDocuments = async (req: Request, res: Response) => {
+export const createDefaultDocuments = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const { studentId } = req.params;
 
