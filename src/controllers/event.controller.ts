@@ -4,6 +4,7 @@ import prismaService from '../services/prisma.service'
 export const eventController = {
   // Get all events
   getAll: async (req: Request, res: Response) => {
+    console.log('DATABASE_URL:', process.env.DATABASE_URL);
     try {
       const events = await prismaService.client.events.findMany({
         include: {

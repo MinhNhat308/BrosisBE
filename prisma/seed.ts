@@ -1,425 +1,265 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-  // Seed Event Categories
+  // Tăng timeout cho phiên seed (tránh 1205 nếu DB hơi chậm)
+  await prisma.$executeRawUnsafe('SET SESSION innodb_lock_wait_timeout=50;');
+
+  // =============================
+  // 0) DỌN DỮ LIỆU CŨ AN TOÀN
+  // =============================
+  // Tắt FK, TRUNCATE theo thứ tự (tag/registration trước, rồi events)
+  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=0;');
+  try {
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE event_tags;');
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE registrations;'); // nếu bạn có bảng này
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE events;');
+  } catch {}
+  // Giữ lại categories (nếu muốn reset thì TRUNCATE rồi seed lại)
+  // await prisma.$executeRawUnsafe('TRUNCATE TABLE event_categories;');
+  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=1;');
+
+  // =============================
+  // 1) SEED CATEGORIES
+  // =============================
   const categories = [
-    {
-      name: 'orientation',
-      description: 'Sự kiện định hướng tân sinh viên',
-      color: 'bg-blue-500',
-      icon: 'GraduationCap'
-    },
-    {
-      name: 'ceremony',
-      description: 'Lễ khai giảng, tốt nghiệp',
-      color: 'bg-purple-500',
-      icon: 'Award'
-    },
-    {
-      name: 'academic',
-      description: 'Sự kiện học tập, kiểm tra',
-      color: 'bg-green-500',
-      icon: 'BookOpen'
-    },
-    {
-      name: 'career',
-      description: 'Hội chợ việc làm, định hướng nghề nghiệp',
-      color: 'bg-orange-500',
-      icon: 'Briefcase'
-    },
-    {
-      name: 'health',
-      description: 'Khám sức khỏe, rèn luyện',
-      color: 'bg-red-500',
-      icon: 'Heart'
-    },
-    {
-      name: 'exam',
-      description: 'Kiểm tra xếp lớp, thi cử',
-      color: 'bg-yellow-500',
-      icon: 'FileText'
-    }
+    { name: 'orientation', description: 'Sự kiện định hướng tân sinh viên', color: 'bg-blue-500', icon: 'GraduationCap' },
+    { name: 'ceremony',   description: 'Lễ khai giảng, tốt nghiệp',          color: 'bg-purple-500', icon: 'Award' },
+    { name: 'training',   description: 'Rèn luyện, kỹ năng, sức khỏe',       color: 'bg-red-500', icon: 'Heart' },
+    { name: 'placement',  description: 'Kiểm tra xếp lớp, thi cử',           color: 'bg-yellow-500', icon: 'FileText' },
+    { name: 'career',     description: 'Hội chợ việc làm, hướng nghiệp',     color: 'bg-orange-500', icon: 'Briefcase' },
   ];
 
-  for (const category of categories) {
+  for (const c of categories) {
     await prisma.event_categories.upsert({
-      where: { name: category.name },
+      where: { name: c.name },
       update: {},
-      create: category,
+      create: c,
     });
   }
 
-  // Seed Events for FPT University K21 Schedule
-  const events = [
+  // =============================
+  // 2) SEED EVENTS (createMany)
+  // =============================
+  // LƯU Ý: các field khớp với schema bạn đang dùng
+  const eventsData = [
     {
-      title: 'Tựu trường - Welcome Tân sinh viên K21',
-      description: 'Chính thức chào đón các tân sinh viên K21 đến với đại gia đình FPT University campus TP.HCM',
-      full_description: `Sự kiện tựu trường là cột mốc quan trọng đánh dấu bước đầu tiên của hành trình đại học tại FPT University. 
-
-Các hoạt động chính:
-- Làm thủ tục tựu trường
-- Nhận tài liệu, thẻ sinh viên
-- Gặp gỡ cố vấn học tập
-- Tham quan campus
-- Làm quen với các bạn cùng khóa
-
-Đây là dịp để các bạn tân sinh viên làm quen với môi trường học tập mới và chuẩn bị cho những trải nghiệm thú vị sắp tới.`,
+      title: 'Tựu trường – Welcome Tân sinh viên',
+      description: 'Chào đón Tân sinh viên K21 tại FPTU TP.HCM.',
+      full_description:
+        `🎉 Sự kiện chào đón Tân sinh viên K21 tại FPTU TP.HCM, mở ra hành trình đại học đầy cảm hứng.\n\n` +
+        `📌 Nội dung: check-in, hướng dẫn nhập học, gặp gỡ cố vấn, mini game, booth CLB…\n\n` +
+        `🕒 03 – 04/09/2025\n📍 FPTU TP.HCM\n👥 Tân sinh viên K21`,
       start_date: new Date('2025-09-03'),
       end_date: new Date('2025-09-04'),
-      location: 'FPT University Campus TP.HCM',
+      location: 'FPTU TP.HCM',
       target_audience: 'Tân sinh viên K21',
       event_type: 'orientation',
-      priority: 'high',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
       is_online: false,
-      organizer: 'Phòng Đào tạo - FPT University',
-      contact_info: 'Email: daotao@fpt.edu.vn | Hotline: 0xxx-xxx-xxx',
-      what_to_bring: 'Giấy tờ tùy thân, giấy báo nhập học, ảnh 3x4 (4 ảnh)',
-      image_url: '/Unicorn1.jpg',
+      organizer: 'Trường Đại học FPT',
       registration_required: true,
-      registration_deadline: new Date('2025-08-30T23:59:00'),
-      tags: {
-        create: [
-          { tag_name: 'Tân sinh viên' },
-          { tag_name: 'K21' },
-          { tag_name: 'Tựu trường' },
-          { tag_name: 'Campus TPHCM' }
-        ]
-      }
+      image_url: null,
     },
     {
       title: 'Hướng dẫn Công nghệ thông tin',
-      description: 'Buổi hướng dẫn sử dụng các hệ thống công nghệ thông tin của trường (trực tuyến theo ca)',
-      full_description: `Buổi hướng dẫn chi tiết về việc sử dụng các hệ thống IT của FPT University:
-
-Nội dung chính:
-- Cách sử dụng FPT University Portal
-- Hướng dẫn sử dụng email sinh viên
-- Cách truy cập và sử dụng hệ thống LMS
-- Đăng ký môn học online
-- Xem thời khóa biểu và điểm thi
-- Sử dụng các ứng dụng hỗ trợ học tập
-
-Sự kiện được tổ chức trực tuyến theo ca để đảm bảo tất cả sinh viên đều được tham gia.`,
+      description: 'Buổi hướng dẫn CNTT trực tuyến theo ca cho Tân sinh viên.',
+      full_description:
+        `💻 Hướng dẫn email sinh viên, LMS, portal, wifi, phần mềm học tập.\n\n` +
+        `🕒 04/09/2025\n📍 Online\n👥 Tân sinh viên K21`,
       start_date: new Date('2025-09-04'),
-      start_time: '08:00',
-      end_time: '17:00',
-      location: 'Trực tuyến - Zoom/Teams',
+      end_date: new Date('2025-09-04'),
+      location: 'Online',
       target_audience: 'Tân sinh viên K21',
-      event_type: 'academic',
-      priority: 'high',
+      event_type: 'training',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
       is_online: true,
-      organizer: 'Phòng Công nghệ thông tin',
-      what_to_bring: 'Laptop, kết nối internet ổn định',
-      image_url: '/Unicorn2.jpg',
+      organizer: 'Trường Đại học FPT',
       registration_required: true,
-      tags: {
-        create: [
-          { tag_name: 'IT Training' },
-          { tag_name: 'Online' },
-          { tag_name: 'Portal' },
-          { tag_name: 'LMS' }
-        ]
-      }
+      image_url: null,
     },
     {
-      title: 'LỄ KHAI GIẢNG NĂM HỌC 2025-2026',
-      description: 'Lễ khai giảng trọng thể kết nối trực tuyến toàn quốc, kỷ niệm 80 năm thành lập Bộ Giáo dục & Đào tạo',
-      full_description: `Lễ khai giảng năm học 2025-2026 là sự kiện trọng thể được tổ chức đồng loạt tại tất cả các cơ sở của Trường Đại học FPT trên toàn quốc.
-
-Điểm đặc biệt:
-- Kết nối trực tuyến với chương trình đặc biệt kỷ niệm 80 năm thành lập Bộ Giáo dục & Đào tạo
-- Được truyền hình trực tiếp trên VTV1
-- Mở ra khí thế mới cho năm học 2025-2026
-- Thông điệp từ Ban Giám hiệu
-- Tuyên thệ sinh viên
-- Biểu diễn văn nghệ đặc sắc
-
-Đây là sự kiện quan trọng đánh dấu sự khởi đầu chính thức của năm học mới.`,
+      title: 'Lễ Khai giảng năm học 2025 – 2026',
+      description: 'Khai giảng toàn quốc, truyền hình trực tiếp VTV1.',
+      full_description:
+        `🎓 Kết nối trực tuyến toàn quốc, kỷ niệm 80 năm Bộ Giáo dục.\n\n` +
+        `🕒 05/09/2025\n📍 Toàn quốc (kết nối trực tuyến)\n👥 Toàn trường`,
       start_date: new Date('2025-09-05'),
-      start_time: '08:00',
-      end_time: '11:00',
-      location: 'Hội trường chính + Truyền hình trực tiếp VTV1',
-      target_audience: 'Toàn thể sinh viên',
+      end_date: new Date('2025-09-05'),
+      location: 'Toàn quốc (kết nối trực tuyến)',
+      target_audience: 'Toàn trường',
       event_type: 'ceremony',
-      priority: 'high',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
-      is_online: false,
-      organizer: 'Bộ Giáo dục & Đào tạo + FPT University',
-      what_to_bring: 'Trang phục lịch sự, thái độ trang trọng',
-      image_url: '/Unicorn3.jpg',
+      is_online: true,
+      organizer: 'Trường Đại học FPT & Bộ GD&ĐT',
       registration_required: false,
-      tags: {
-        create: [
-          { tag_name: 'Khai giảng' },
-          { tag_name: 'VTV1' },
-          { tag_name: 'Toàn quốc' },
-          { tag_name: '80 năm GD&ĐT' }
-        ]
-      }
+      image_url: null,
     },
     {
       title: 'Hướng dẫn & Kiểm tra xếp lớp Tiếng Anh',
-      description: 'Kiểm tra trình độ và xếp lớp học Tiếng Anh phù hợp với từng sinh viên',
-      full_description: `Sự kiện quan trọng để xác định trình độ Tiếng Anh và xếp lớp học phù hợp:
-
-Quy trình:
-- Buổi hướng dẫn về chương trình Tiếng Anh
-- Kiểm tra trình độ đầu vào (Listening, Reading, Writing, Speaking)
-- Phân loại theo các level: Basic, Intermediate, Advanced
-- Thông báo kết quả và lịch học
-
-Mục tiêu:
-- Đảm bảo sinh viên học Tiếng Anh đúng trình độ
-- Tối ưu hóa hiệu quả học tập
-- Chuẩn bị tốt cho các môn học chuyên ngành bằng tiếng Anh`,
+      description: 'Sinh viên tham gia hướng dẫn và kiểm tra phân lớp tiếng Anh.',
+      full_description:
+        `🗣️ Giới thiệu lộ trình TA, kiểm tra xếp lớp đầu vào.\n\n` +
+        `🕒 06 – 07/09/2025\n📍 FPTU TP.HCM\n👥 Tân sinh viên K21`,
       start_date: new Date('2025-09-06'),
       end_date: new Date('2025-09-07'),
-      start_time: '08:00',
-      end_time: '17:00',
-      location: 'Các phòng thi Campus TP.HCM',
+      location: 'FPTU TP.HCM',
       target_audience: 'Tân sinh viên K21',
-      event_type: 'exam',
-      priority: 'high',
+      event_type: 'placement',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
       is_online: false,
-      organizer: 'Khoa Ngôn ngữ - FPT University',
-      what_to_bring: 'CCCD/CMND, bút viết, đồng hồ',
-      requirements: 'Có mặt đúng giờ, tuân thủ quy chế thi',
-      image_url: '/Unicorn4.jpg',
+      organizer: 'Trường Đại học FPT',
       registration_required: false,
-      tags: {
-        create: [
-          { tag_name: 'Tiếng Anh' },
-          { tag_name: 'Placement Test' },
-          { tag_name: 'Xếp lớp' },
-          { tag_name: 'Language' }
-        ]
-      }
+      image_url: null,
     },
     {
-      title: 'Rèn luyện tập trung & Khám sức khỏe - Đợt 1',
-      description: 'Chương trình rèn luyện thể chất và khám sức khỏe định kỳ cho tân sinh viên K21',
-      full_description: `Chương trình rèn luyện tập trung và khám sức khỏe nhằm:
-
-Mục tiêu:
-- Nâng cao sức khỏe thể chất và tinh thần
-- Kiểm tra sức khỏe tổng quát
-- Xây dựng tinh thần đồng đội
-- Rèn luyện kỷ luật và ý thức tập thể
-
-Hoạt động chính:
-- Tập thể dục buổi sáng
-- Các môn thể thao tập thể
-- Khám sức khỏe tổng quát
-- Hoạt động team building
-
-Lưu ý: Sinh viên sẽ được chia thành 2 đợt để đảm bảo chất lượng.`,
+      title: 'Rèn luyện tập trung & Khám sức khỏe',
+      description: 'Sinh viên tham gia rèn luyện tập trung và khám sức khỏe theo đợt.',
+      full_description:
+        `💪 Rèn luyện thể chất + khám sức khỏe định kỳ.\n\n` +
+        `🕒 08/09 – 31/10/2025 (chia đợt)\n📍 FPTU TP.HCM\n👥 Tân sinh viên K21`,
       start_date: new Date('2025-09-08'),
-      end_date: new Date('2025-10-03'),
-      start_time: '06:00',
-      end_time: '18:00',
-      location: 'Khu vực thể thao Campus + Trung tâm Y tế',
-      target_audience: 'Tân sinh viên K21 - Đợt 1',
-      max_participants: 500,
-      event_type: 'health',
-      priority: 'high',
+      end_date: new Date('2025-10-31'),
+      location: 'FPTU TP.HCM',
+      target_audience: 'Tân sinh viên K21',
+      event_type: 'training',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
       is_online: false,
-      organizer: 'Phòng Công tác Sinh viên + Y tế Trường',
-      what_to_bring: 'Đồ thể thao, giày thể thao, khăn tắm, nước uống',
-      requirements: 'Sức khỏe tốt, không có bệnh lý nặng',
-      image_url: '/Unicorn5.jpg',
+      organizer: 'Trường Đại học FPT',
       registration_required: true,
-      tags: {
-        create: [
-          { tag_name: 'Rèn luyện' },
-          { tag_name: 'Khám sức khỏe' },
-          { tag_name: 'Thể thao' },
-          { tag_name: 'Đợt 1' }
-        ]
-      }
+      image_url: null,
     },
     {
-      title: 'Tuần lễ định hướng (Orientation Week) - Nhóm 1',
-      description: 'Tuần lễ định hướng toàn diện về cuộc sống đại học và các hoạt động tại FPT University',
-      full_description: `Orientation Week là tuần lễ quan trọng giúp tân sinh viên hòa nhập với môi trường đại học:
-
-Các hoạt động chính:
-- Giới thiệu về truyền thống FPT University
-- Hướng dẫn quy chế đào tạo và học tập
-- Giới thiệu các câu lạc bộ, đội nhóm
-- Workshop kỹ năng mềm
-- Gala night và các hoạt động giải trí
-- Mentoring từ các sinh viên khóa trước
-
-Mục tiêu:
-- Giúp sinh viên thích ứng nhanh với môi trường mới
-- Xây dựng mối quan hệ bạn bè
-- Hiểu rõ về cơ hội và thách thức phía trước`,
+      title: 'Tuần lễ định hướng (Orientation Week)',
+      description: 'Sinh viên tham gia Orientation Week để làm quen với môi trường học tập.',
+      full_description:
+        `🧭 Hiểu văn hóa, cách học tín chỉ, đời sống sinh viên.\n\n` +
+        `🕒 Nhóm 1: 10/09 – 19/09/2025 | Nhóm 2: 08/10 – 17/10/2025\n📍 FPTU TP.HCM\n👥 Tân sinh viên K21`,
       start_date: new Date('2025-09-10'),
-      end_date: new Date('2025-09-19'),
-      start_time: '08:00',
-      end_time: '21:00',
-      location: 'Toàn bộ Campus FPT University TP.HCM',
-      target_audience: 'Tân sinh viên K21 - Nhóm 1',
-      max_participants: 600,
+      end_date: new Date('2025-10-17'),
+      location: 'FPTU TP.HCM',
+      target_audience: 'Tân sinh viên K21',
       event_type: 'orientation',
-      priority: 'high',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
       is_online: false,
-      organizer: 'Phòng Công tác Sinh viên',
-      what_to_bring: 'Tinh thần hào hứng, sẵn sàng học hỏi',
-      image_url: '/BrotherWinds.jpg',
+      organizer: 'Trường Đại học FPT',
       registration_required: false,
-      tags: {
-        create: [
-          { tag_name: 'Orientation' },
-          { tag_name: 'Định hướng' },
-          { tag_name: 'Nhóm 1' },
-          { tag_name: 'Campus life' }
-        ]
-      }
+      image_url: null,
     },
     {
       title: 'Kiểm tra xếp lớp LUK Global',
-      description: 'Kiểm tra trình độ và bắt đầu học chính thức theo thời khóa biểu',
-      full_description: `Bài kiểm tra cuối cùng trước khi bắt đầu học chính thức:
-
-Nội dung kiểm tra:
-- Đánh giá năng lực học tập tổng quát
-- Xếp lớp theo trình độ phù hợp
-- Chuẩn bị cho việc học theo thời khóa biểu chính thức
-
-Sau khi hoàn thành:
-- Sinh viên sẽ được phân lớp chính thức
-- Nhận thời khóa biểu cụ thể
-- Bắt đầu học tập theo chương trình đào tạo
-- Chính thức trở thành sinh viên FPT University
-
-Đây là cột mốc quan trọng kết thúc giai đoạn định hướng và bắt đầu quá trình học tập chính thức.`,
+      description: 'Bài kiểm tra xếp lớp LUK Global. Chính thức học theo TKB.',
+      full_description:
+        `🌍 Kiểm tra LUK Global – phân lớp và bắt đầu học chính thức.\n\n` +
+        `🕒 03/11/2025\n📍 FPTU TP.HCM\n👥 Tân sinh viên K21`,
       start_date: new Date('2025-11-03'),
-      start_time: '08:00',
-      end_time: '17:00',
-      location: 'Các phòng thi Campus TP.HCM',
+      end_date: new Date('2025-11-03'),
+      location: 'FPTU TP.HCM',
       target_audience: 'Tân sinh viên K21',
-      event_type: 'exam',
-      priority: 'high',
+      event_type: 'placement',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: true,
       is_online: false,
-      organizer: 'Phòng Đào tạo',
-      what_to_bring: 'CCCD/CMND, bút viết, máy tính (nếu cần)',
-      requirements: 'Hoàn thành đầy đủ các khóa định hướng trước đó',
-      image_url: '/Mentor.jpg',
+      organizer: 'Trường Đại học FPT',
       registration_required: false,
-      tags: {
-        create: [
-          { tag_name: 'LUK Global' },
-          { tag_name: 'Xếp lớp' },
-          { tag_name: 'Học chính thức' },
-          { tag_name: 'Assessment' }
-        ]
-      }
+      image_url: null,
     },
     {
-      title: 'Convocation Day - Lễ tốt nghiệp, Alumni Day & FPTU Career Fair',
-      description: 'Sự kiện lớn kết hợp lễ tốt nghiệp, gặp gỡ cựu sinh viên và hội chợ việc làm',
-      full_description: `Sự kiện trọng đại nhất trong năm học với 3 hoạt động chính:
-
-🎓 CONVOCATION DAY - LỄ TỐT NGHIỆP:
-- Lễ trao bằng tốt nghiệp trang trọng
-- Phát biểu của Ban Giám hiệu
-- Chia sẻ từ sinh viên xuất sắc
-- Chụp ảnh lưu niệm cùng gia đình
-
-👥 ALUMNI DAY:
-- Gặp gỡ cựu sinh viên thành công
-- Chia sẻ kinh nghiệm nghề nghiệp
-- Networking và kết nối cộng đồng
-- Trao giải Alumni của năm
-
-💼 FPTU CAREER FAIR:
-- Hơn 100 doanh nghiệp tham gia
-- Cơ hội việc làm cho sinh viên
-- Phỏng vấn trực tiếp tại chỗ
-- Tư vấn hướng nghiệp miễn phí
-
-Đây là sự kiện không thể bỏ lỡ cho mọi sinh viên FPT University!`,
+      title: 'Convocation Day – Lễ tốt nghiệp, Alumni Day & Career Fair',
+      description: 'Lễ tốt nghiệp, Alumni Day và Career Fair tại FPTU TP.HCM.',
+      full_description:
+        `🎓 Lễ tốt nghiệp + 👥 Alumni Day + 💼 Career Fair.\n\n` +
+        `🕒 11/2025\n📍 FPTU TP.HCM\n👥 Toàn trường`,
       start_date: new Date('2025-11-15'),
-      end_date: new Date('2025-11-16'),
-      start_time: '08:00',
-      end_time: '18:00',
-      location: 'Toàn bộ Campus + Hội trường chính',
-      target_audience: 'Toàn thể sinh viên, cựu sinh viên, gia đình',
-      event_type: 'career',
-      priority: 'high',
+      end_date: new Date('2025-11-15'),
+      location: 'FPTU TP.HCM',
+      target_audience: 'Toàn trường',
+      event_type: 'ceremony',
+      status: 'upcoming',
+      priority: 'normal',
+      current_participants: 0,
       is_mandatory: false,
       is_online: false,
-      organizer: 'FPT University + Phòng Quan hệ Doanh nghiệp',
-      what_to_bring: 'CV, trang phục lịch sự, tâm thế sẵn sàng',
-      image_url: '/unicorn.png',
+      organizer: 'Trường Đại học FPT',
       registration_required: true,
-      registration_deadline: new Date('2025-11-10T23:59:00'),
-      tags: {
-        create: [
-          { tag_name: 'Tốt nghiệp' },
-          { tag_name: 'Alumni' },
-          { tag_name: 'Career Fair' },
-          { tag_name: 'Job Opportunity' }
-        ]
-      }
-    }
-  ];
+      image_url: null,
+    },
+  ] as const;
 
-  for (const event of events) {
-    await prisma.events.create({
-      data: event,
+  await prisma.events.createMany({
+    data: eventsData.map(e => ({ ...e })),
+    skipDuplicates: true,
+  });
+
+  // Lấy lại id theo title để gắn tags
+  const dbEvents = await prisma.events.findMany({
+    select: { id: true, title: true },
+  });
+  const idByTitle = new Map(dbEvents.map(e => [e.title, e.id]));
+
+  // =============================
+  // 3) SEED TAGS (createMany)
+  // =============================
+  const tagList: { event_id: number; tag_name: string }[] = [];
+
+  function addTags(title: string, tags: string[]) {
+    const id = idByTitle.get(title);
+    if (!id) return;
+    for (const t of tags) {
+      tagList.push({ event_id: id, tag_name: t });
+    }
+  }
+
+  addTags('Tựu trường – Welcome Tân sinh viên', ['K21', 'Nhập học', 'Welcome', 'Orientation']);
+  addTags('Hướng dẫn Công nghệ thông tin', ['K21', 'CNTT', 'LMS', 'Online']);
+  addTags('Lễ Khai giảng năm học 2025 – 2026', ['Khai giảng', 'Toàn quốc', 'VTV1', '2025-2026']);
+  addTags('Hướng dẫn & Kiểm tra xếp lớp Tiếng Anh', ['Tiếng Anh', 'Placement', 'K21']);
+  addTags('Rèn luyện tập trung & Khám sức khỏe', ['Rèn luyện', 'Khám sức khỏe', 'K21']);
+  addTags('Tuần lễ định hướng (Orientation Week)', ['Orientation Week', 'K21', 'Định hướng']);
+  addTags('Kiểm tra xếp lớp LUK Global', ['LUK Global', 'Placement', 'K21']);
+  addTags('Convocation Day – Lễ tốt nghiệp, Alumni Day & Career Fair', ['Convocation', 'Alumni Day', 'Career Fair']);
+
+  if (tagList.length) {
+    await prisma.event_tags.createMany({
+      data: tagList,
+      skipDuplicates: true,
     });
   }
 
-  // Seed Academic Calendar
-  const academicEvents = [
-    {
-      semester: '2025-2026',
-      event_name: 'Bắt đầu năm học',
-      start_date: new Date('2025-09-01'),
-      description: 'Chính thức bắt đầu năm học 2025-2026'
-    },
-    {
-      semester: '2025-2026',
-      event_name: 'Tết Nguyên đán',
-      start_date: new Date('2026-01-29'),
-      end_date: new Date('2026-02-06'),
-      description: 'Nghỉ Tết Nguyên đán Bính Ngọ',
-      is_holiday: true
-    },
-    {
-      semester: '2025-2026',
-      event_name: 'Thi kết thúc học kỳ 1',
-      start_date: new Date('2026-01-06'),
-      end_date: new Date('2026-01-20'),
-      description: 'Kỳ thi kết thúc học kỳ 1 năm học 2025-2026'
-    }
-  ];
-
-  for (const academicEvent of academicEvents) {
-    await prisma.academic_calendar.create({
-      data: academicEvent,
-    });
-  }
-
-  console.log('✅ Seed data created successfully for FPT University Events!');
+  console.log('✅ Seed data created successfully!');
 }
 
 main()
   .then(async () => {
-    await prisma.$disconnect()
+    await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error(e)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
