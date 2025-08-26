@@ -34,7 +34,8 @@ app.use(
       'http://localhost:8082',
       'https://brosis-frontend.onrender.com',
       'https://brosis2025.onrender.com',
-      'https://brosis-fe-h6i4.vercel.app',  // Add Vercel domain
+      'https://brosis-fe-h6i4.vercel.app',  // Old Vercel domain
+      'https://minhnhat-brothers2025.vercel.app',  // New custom domain
       /\.onrender\.com$/,
       /\.vercel\.app$/  // Allow all Vercel domains
     ],
